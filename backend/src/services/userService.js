@@ -87,4 +87,76 @@ const createUser = async (userData) => {
     }
 };
 
-module.exports = { loginUser, getUsers, createUser };
+const updateUser = async (userId, userData) => {
+    const fields = [];
+    const params = [];
+
+    const isValid = (value) => value !== undefined && value !== null && value !== '';
+
+    if (isValid(userData.name)) {
+        fields.push('name = ?');
+        params.push(userData.name);
+    }
+
+    if (isValid(userData.email)) {
+        fields.push('email = ?');
+        params.push(userData.email);
+    }
+
+    if (isValid(userData.password)) {
+        const hashedPassword = await passwordUtils.hashPassword(userData.password);
+        fields.push('password = ?');
+        params.push(hashedPassword);
+    }
+
+    if (isValid(userData.role)) {
+        fields.push('role = ?');
+        params.push(userData.role);
+    }
+
+    if (fields.length === 0) {
+        throw new Error('No hay campos válidos para actualizar');
+    }
+
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+    params.push(userId);
+
+    try {
+        const [result] = await pool.promise().query(query, params);
+
+        if (result.affectedRows === 0) {
+            return new Error('Usuario no encontrado');
+        }
+
+        // Retorna solo los datos que se actualizaron
+        const updatedUser = { id: userId };
+        fields.forEach((field, index) => {
+            const key = field.split('=')[0].trim();
+            updatedUser[key] = params[index];
+        });
+
+        return updatedUser;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+
+
+const deleteUser = async (userId) => {
+    const query = 'DELETE FROM users WHERE id = ?';
+
+    try {
+        const [result] = await pool.promise().query(query, [userId]);
+
+        if (result.affectedRows === 0) {
+            return null;
+        }
+
+        return { message: 'Usuario eliminado' };
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+module.exports = { loginUser, getUsers, createUser, updateUser, deleteUser };

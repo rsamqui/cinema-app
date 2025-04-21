@@ -40,3 +40,33 @@ exports.createUser = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.updateUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const updatedUser = await userService.updateUser(userId, req.body);
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json(updatedUser);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const deletedUser = await userService.deleteUser(userId);
+
+        if (!deletedUser) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ message: 'Usuario eliminado' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

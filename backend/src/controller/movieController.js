@@ -25,3 +25,33 @@ exports.createMovie = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.updateMovie = async (req, res) => {
+    try {
+        const movieId = req.params.id;
+        const updatedMovie = await movieService.updateMovie(movieId, req.body);
+
+        if (!updatedMovie) {
+            return res.status(404).json({ error: 'Pelicula no encontrada' });
+        }
+
+        res.json(updatedMovie);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMovie = async (req, res) => {
+    try {
+        const movieId = req.params.id;
+        const deletedMovie = await movieService.deleteMovie(movieId);
+
+        if (!deletedMovie) {
+            return res.status(404).json({ error: 'Pelicula no encontrada' });
+        }
+
+        res.json({ message: 'Pelicula eliminada correctamente' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

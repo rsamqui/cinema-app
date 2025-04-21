@@ -45,4 +45,67 @@ const createMovie = async (movie) => {
     }
 };
 
-module.exports = { getMovies, createMovie };
+const updateMovie = async (id, movie) => {
+    const fields = [];
+    const params = [];
+
+    const isValid = (value) => value !== undefined && value !== null && value !== '';
+
+    if (isValid(movie.title)) {
+        fields.push('title = ?');
+        params.push(movie.title);
+    }
+
+    if (isValid(movie.synopsis)) {
+        fields.push('synopsis = ?');
+        params.push(movie.synopsis);
+    }
+
+    if (isValid(movie.duration)) {
+        fields.push('duration = ?');
+        params.push(movie.duration);
+    }
+
+    if (isValid(movie.posterUrl)) {
+        fields.push('posterUrl = ?');
+        params.push(movie.posterUrl);
+    }
+
+    if (fields.length === 0) {
+        throw new Error('No fields to update');
+    }
+
+    const query = `UPDATE movies SET ${fields.join(', ')} WHERE id = ?`;
+    params.push(id);
+
+    try {
+        const [result] = await pool.promise().query(query, params);
+        
+        if (result.affectedRows === 0) {
+            throw new Error('Movie not found');
+        }
+
+        const updatedMovie = {id: id};
+        fields.forEach((field, index) => {
+            const fieldName = field.split(' = ')[0];
+            updatedMovie[fieldName] = params[index];
+        });
+
+        return updatedMovie[0];
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+const deleteMovie = async (id) => {
+    const query = 'DELETE FROM movies WHERE id = ?';
+
+    try {
+        const [result] = await pool.promise().query(query, [id]);
+        return result.affectedRows > 0;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
+module.exports = { getMovies, createMovie, updateMovie, deleteMovie };
