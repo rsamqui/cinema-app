@@ -87,11 +87,11 @@ const updateMovie = async (id, movie) => {
 
         const updatedMovie = {id: id};
         fields.forEach((field, index) => {
-            const fieldName = field.split(' = ')[0];
-            updatedMovie[fieldName] = params[index];
+            const key = field.split(' = ')[0].trim();
+            updatedMovie[key] = params[index];
         });
 
-        return updatedMovie[0];
+        return updatedMovie;
     } catch (error) {
         throw new Error(error.message);
     }

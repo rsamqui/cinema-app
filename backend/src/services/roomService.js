@@ -75,11 +75,11 @@ const updateRoom = async (id, room) => {
 
         const updatedRoom = { id: id };
         fields.forEach((field, index) => {
-            const fieldName = field.split(' = ')[0].trim();
-            updatedRoom[fieldName] = params[index];
+            const key = field.split(' = ')[0].trim();
+            updatedRoom[key] = params[index];
         });
 
-        return updatedRoom[0];
+        return updatedRoom;
     } catch (error) {
         throw new Error(error.message);
     }
