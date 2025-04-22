@@ -22,26 +22,38 @@ const getRooms = async (filters) => {
     }
 };
 
-const createRoom = async (room) => {
-    const { name, capacity } = room;
+const createRoom = async (room) => {  
+    const { roomNumber, movieId, totalRows, totalColumns } = room;
 
-    if (!name || !capacity) {
-        throw new Error('All fields are required');
-    }
+    const roomQuery = 'INSERT INTO rooms (roomNumber, movieId, totalRows, totalColumns) VALUES (?, ?, ?, ?)';
+    const roomParams = [roomNumber, movieId, totalRows, totalColumns];
 
-    const query = 'INSERT INTO rooms (name, capacity) VALUES (?, ?)';
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
     try {
-        const [result] = await pool.promise().query(query, [room.name, room.capacity]);
-        return {
-            id: result.insertId,
-            name,
-            capacity
-        };
+        // Insert room
+        const [result] = await pool.promise().query(roomQuery, roomParams);
+        const roomId = result.insertId;
+
+        // Generate seat data
+        const seatInserts = [];
+        for (let i = 0; i < totalRows; i++) {
+            const rowLetter = alphabet[i];
+            for (let j = 1; j <= totalColumns; j++) {
+                seatInserts.push([roomId, rowLetter, j, 'available']);
+            }
+        }
+
+        // Insert seats in bulk
+        const seatQuery = 'INSERT INTO seats (roomId, rowLetter, colNumber, status) VALUES ?';
+        await pool.promise().query(seatQuery, [seatInserts]);
+
+        return result.insertId;
     } catch (error) {
         throw new Error(error.message);
     }
 };
+  
 
 const updateRoom = async (id, room) => {
     const fields = [];
@@ -49,51 +61,102 @@ const updateRoom = async (id, room) => {
 
     const isValid = (value) => value !== undefined && value !== null && value !== '';
 
-    if (isValid(room.name)) {
-        fields.push('name = ?');
-        params.push(room.name);
+    if (isValid(room.roomNumber)) {
+        fields.push('roomNumber = ?');
+        params.push(room.roomNumber);
     }
 
-    if (isValid(room.capacity)) {
-        fields.push('capacity = ?');
-        params.push(room.capacity);
+    if (isValid(room.movieId)) {
+        fields.push('movieId = ?');
+        params.push(room.movieId);
+    }
+
+    if (isValid(room.totalRows)) {
+        fields.push('totalRows = ?');
+        params.push(room.totalRows);
+    }
+
+    if (isValid(room.totalColumns)) {
+        fields.push('totalColumns = ?');
+        params.push(room.totalColumns);
     }
 
     if (fields.length === 0) {
         throw new Error('No fields to update');
     }
 
-    const query = `UPDATE rooms SET ${fields.join(', ')} WHERE id = ?`;
+    const updateQuery = `UPDATE rooms SET ${fields.join(', ')} WHERE id = ?`;
     params.push(id);
 
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
     try {
-        const [result] = await pool.promise().query(query, params);
-        
+        const connection = await pool.promise().getConnection();
+        await connection.beginTransaction();
+
+        // Update room data
+        const [result] = await connection.query(updateQuery, params);
+
         if (result.affectedRows === 0) {
             throw new Error('Room not found');
         }
 
-        const updatedRoom = { id: id };
-        fields.forEach((field, index) => {
-            const key = field.split(' = ')[0].trim();
-            updatedRoom[key] = params[index];
-        });
+        // Delete previous seats
+        await connection.query('DELETE FROM seats WHERE roomId = ?', [id]);
 
-        return updatedRoom;
+        // Reinsert new seats if rows and columns are provided
+        if (isValid(room.totalRows) && isValid(room.totalColumns)) {
+            const seatInserts = [];
+
+            for (let i = 0; i < room.totalRows; i++) {
+                const rowLetter = alphabet[i];
+                for (let j = 1; j <= room.totalColumns; j++) {
+                    seatInserts.push([id, rowLetter, j, 'available']);
+                }
+            }
+
+            const seatQuery = 'INSERT INTO seats (roomId, rowLetter, colNumber, status) VALUES ?';
+            await connection.query(seatQuery, [seatInserts]);
+        }
+
+        await connection.commit();
+        connection.release();
+
+        return { id, ...room };
     } catch (error) {
+        if (connection) {
+            await connection.rollback();
+            connection.release();
+        }
         throw new Error(error.message);
     }
 };
 
 const deleteRoom = async (id) => {
-    const query = 'DELETE FROM rooms WHERE id = ?';
+    const seatDeleteQuery = 'DELETE FROM seats WHERE roomId = ?';
+    const roomDeleteQuery = 'DELETE FROM rooms WHERE id = ?';
+
+    const connection = await pool.promise().getConnection();
 
     try {
-        const [result] = await pool.promise().query(query, [id]);
+        await connection.beginTransaction();
+
+        // Delete related seats
+        await connection.query(seatDeleteQuery, [id]);
+
+        // Delete the room
+        const [result] = await connection.query(roomDeleteQuery, [id]);
+
+        await connection.commit();
+        connection.release();
+
         return result.affectedRows > 0;
     } catch (error) {
+        await connection.rollback();
+        connection.release();
         throw new Error(error.message);
     }
 };
+
 
 module.exports = { getRooms, createRoom, updateRoom, deleteRoom };
