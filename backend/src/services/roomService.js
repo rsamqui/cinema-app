@@ -31,11 +31,9 @@ const createRoom = async (room) => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
     try {
-        // Insert room
         const [result] = await pool.promise().query(roomQuery, roomParams);
         const roomId = result.insertId;
 
-        // Generate seat data
         const seatInserts = [];
         for (let i = 0; i < totalRows; i++) {
             const rowLetter = alphabet[i];
@@ -44,7 +42,6 @@ const createRoom = async (room) => {
             }
         }
 
-        // Insert seats in bulk
         const seatQuery = 'INSERT INTO seats (roomId, rowLetter, colNumber, status) VALUES ?';
         await pool.promise().query(seatQuery, [seatInserts]);
 
@@ -94,17 +91,14 @@ const updateRoom = async (id, room) => {
         const connection = await pool.promise().getConnection();
         await connection.beginTransaction();
 
-        // Update room data
         const [result] = await connection.query(updateQuery, params);
 
         if (result.affectedRows === 0) {
             throw new Error('Room not found');
         }
 
-        // Delete previous seats
         await connection.query('DELETE FROM seats WHERE roomId = ?', [id]);
 
-        // Reinsert new seats if rows and columns are provided
         if (isValid(room.totalRows) && isValid(room.totalColumns)) {
             const seatInserts = [];
 
@@ -141,10 +135,8 @@ const deleteRoom = async (id) => {
     try {
         await connection.beginTransaction();
 
-        // Delete related seats
         await connection.query(seatDeleteQuery, [id]);
 
-        // Delete the room
         const [result] = await connection.query(roomDeleteQuery, [id]);
 
         await connection.commit();

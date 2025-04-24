@@ -27,46 +27,112 @@ const getBookings = async (filters) => {
     }
 };
 
-const createBooking = async (userId, seatIds) => {
+const createBooking = async ({ userId, seatIds, bookDate }) => {
     if (!userId || !Array.isArray(seatIds) || seatIds.length === 0) {
         throw new Error('User ID and at least one seat ID are required');
     }
 
+    const connection = await pool.promise().getConnection();
+
     try {
         await connection.beginTransaction();
 
-        // Step 1: Insert the reservation
-        const [reservationResult] = await connection.query(
-            'INSERT INTO bookings (userId) VALUES (?)',
-            [userId]
+        const [takenSeats] = await connection.query(
+            `SELECT id FROM seats WHERE id IN (?) AND status IN ('reserved', 'booked')`,
+            [seatIds]
         );
+
+        if (takenSeats.length > 0) {
+            const takenIds = takenSeats.map(seat => seat.id).join(', ');
+            throw new Error(`Seat(s) already taken: ${takenIds}. Please select another.`);
+        }
+
+        const formattedBookDate = new Date(bookDate).toISOString().slice(0, 19).replace('T', ' ');
+
+        const [reservationResult] = await connection.query(
+            'INSERT INTO bookings (userId, bookDate) VALUES (?, ?)',
+            [userId, formattedBookDate]
+        );
+
         const reservationId = reservationResult.insertId;
 
-        // Step 2: Insert each seat into bookingseats
         const seatInserts = seatIds.map(seatId => [reservationId, seatId]);
         await connection.query(
             'INSERT INTO bookingseats (bookingId, seatId) VALUES ?',
             [seatInserts]
         );
 
-        // Step 3: Optionally update seat status to "booked"
         await connection.query(
             'UPDATE seats SET status = ? WHERE id IN (?)',
             ['reserved', seatIds]
         );
 
         await connection.commit();
-        connection.release();
-
         return {
             reservationId,
-            seatsBooked: seatIds.length
+            seatsBooked: seatIds.length,
+            bookDate: formattedBookDate
         };
     } catch (error) {
         await connection.rollback();
-        connection.release();
         throw new Error('Booking failed: ' + error.message);
+    } finally {
+        connection.release();
     }
 };
 
-module.exports = { getBookings, createBooking };
+const deleteBooking = async (bookingId) => {
+    if (!bookingId) {
+        throw new Error('Booking ID is required');
+    }
+
+    const connection = await pool.promise().getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const [booking] = await connection.query(
+            'SELECT * FROM bookings WHERE id = ?',
+            [bookingId]
+        );
+
+        if (booking.length === 0) {
+            throw new Error('Booking not found');
+        }
+
+        const [bookingSeats] = await connection.query(
+            'SELECT seatId FROM bookingseats WHERE bookingId = ?',
+            [bookingId]
+        );
+        const seatIds = bookingSeats.map(seat => seat.seatId);
+
+        await connection.query(
+            'DELETE FROM bookingseats WHERE bookingId = ?',
+            [bookingId]
+        );
+
+        if (seatIds.length > 0) {
+            await connection.query(
+                'UPDATE seats SET status = ? WHERE id IN (?)',
+                ['available', seatIds]
+            );
+        }
+
+        await connection.query(
+            'DELETE FROM bookings WHERE id = ?',
+            [bookingId]
+        );
+
+        await connection.commit();
+
+        return { deleted: true, bookingId };
+    } catch (error) {
+        await connection.rollback();
+        throw new Error('Deletion failed: ' + error.message);
+    } finally {
+        connection.release();
+    }
+};
+
+
+module.exports = { getBookings, createBooking, deleteBooking };

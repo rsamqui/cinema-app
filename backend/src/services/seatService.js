@@ -1,12 +1,15 @@
-const pool = require('../config/db');
-
 const getSeats = async (filters) => {
     let query = 'SELECT * FROM seats WHERE 1=1';
     let params = [];
 
-    if (filters.id) {
+    if (filters.roomId) {
         query += ' AND roomId = ?';
-        params.push(filters.id);
+        params.push(filters.roomId);
+    }
+
+    if (filters.status) {
+        query += ' AND status = ?';
+        params.push(filters.status);
     }
 
     try {
