@@ -68,7 +68,7 @@ const getUsers = async (filters) => {
 };
 
 const createUser = async (userData) => {
-    const { name, email, password, role } = userData;
+    const { name, email, password, role = 'client' } = userData;
 
     const hashedPassword = await passwordUtils.hashPassword(password);
 
