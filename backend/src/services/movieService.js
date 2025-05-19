@@ -120,4 +120,4 @@ const deleteMovie = async (id) => {
     }
 };
 
-module.exports = { getMovies, createMovie, updateMovie, deleteMovie };
+module.exports = { getMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
