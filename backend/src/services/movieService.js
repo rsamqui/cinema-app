@@ -9,7 +9,7 @@ const getNowShowingMovies = async () => {
             m.title AS movieTitle, 
             m.synopsis AS movieSynopsis, 
             m.duration AS movieDuration, 
-            m.posterUrl AS moviePosterUrl,
+            m.posterUrl AS moviePosterUrl
         FROM rooms r
         JOIN movies m ON r.movieId = m.id
         WHERE r.movieId IS NOT NULL; 
