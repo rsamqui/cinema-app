@@ -1,3 +1,5 @@
+const pool = require('../config/db');
+
 const getSeats = async (filters) => {
     let query = 'SELECT * FROM seats WHERE 1=1';
     let params = [];
