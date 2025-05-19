@@ -14,7 +14,7 @@ exports.getMovies = async (req, res) => {
     }
 };
 
-movieService.getNowShowingMovies = async (req, res) => {
+exports.getNowShowingMovies = async (req, res) => {
     try {
         const filters = {
             id: req.query.id,
