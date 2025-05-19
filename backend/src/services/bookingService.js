@@ -100,7 +100,6 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
             m.title AS movieTitle,
             m.duration AS movieDuration,
             r.roomNumber,
-            r.name AS roomName, 
             GROUP_CONCAT(CONCAT(s.rowLetter, s.colNumber) ORDER BY s.rowLetter, s.colNumber SEPARATOR ', ') AS bookedSeatsString
         FROM bookings b
         JOIN users u ON b.userId = u.id
@@ -109,7 +108,7 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         JOIN bookingseats bs ON b.id = bs.bookingId
         JOIN seats s ON bs.seatId = s.id
         WHERE b.id = ?
-        GROUP BY b.id, u.name, u.email, m.title, m.duration, m.posterUrl, r.roomNumber, r.name, b.show_date, b.total_price, b.booking_transaction_time;
+        GROUP BY b.id, u.name, u.email, m.title, m.duration, m.posterUrl, r.roomNumber, b.showDate, b.price;
     `;
     try {
         const [rows] = await conn.query(query, [bookingId]);
