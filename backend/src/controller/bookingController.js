@@ -28,6 +28,21 @@ exports.createBooking = async (req, res) => {
     }
 };
 
+exports.getBookingDetailsForTicket = async (req, res) => {
+    try {
+        const bookingId = req.params.id;
+        const bookingDetails = await bookingService.getBookingDetailsForTicket(bookingId);
+
+        if (!bookingDetails) {
+            return res.status(404).json({ error: 'Reserva no encontrada' });
+        }
+
+        res.json(bookingDetails);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
 exports.updateBooking = async (req, res) => {
     try {
         const bookingId = req.params.id;

@@ -79,7 +79,6 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
         await connection.commit();
         
         const ticketDetails = await getBookingDetailsForTicket(bookingId, connection);
-        
         return ticketDetails;
 
     } catch (error) {
