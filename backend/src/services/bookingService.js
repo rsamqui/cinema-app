@@ -71,6 +71,7 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
             [bookingSeatInserts]
         );
 
+        const newSeatStatus = 'taken';
         if (seatDbIds.length > 0) { 
             const updateSeatQuery = 'UPDATE seats SET status = ? WHERE id IN (?)';
             await connection.query(updateSeatQuery, [newSeatStatus, seatDbIds]);
