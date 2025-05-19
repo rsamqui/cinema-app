@@ -17,6 +17,23 @@ exports.getMovies = async (req, res) => {
     }
 };
 
+exports.getAvailableMovies = async (req, res) => {
+    try {
+        const filters = {
+            id: req.query.id,
+            title: req.query.title,
+            genre: req.query.genre,
+            director: req.query.director,
+            year: req.query.year
+        };
+
+        const movies = await movieService.getAvailableMovies(filters);
+        res.json(movies);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
 exports.createMovie = async (req, res) => {
     try {
         const newMovie = await movieService.createMovie(req.body);

@@ -5,6 +5,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 router.post('/movies/new', authenticate, authorize(['admin']), movieController.createMovie);
 router.get('/movies', movieController.getMovies);
+router.get('/movies/available', authenticate, authorize(['admin']), movieController.getAvailableMovies);
 router.put('/movies/:id', authenticate, authorize(['admin']), movieController.updateMovie);
 router.delete('/movies/:id', authenticate, authorize(['admin']), movieController.deleteMovie);
 
