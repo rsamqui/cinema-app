@@ -22,6 +22,18 @@ const getMovies = async (filters) => {
     }
 };
 
+const getAvailableMovies = async (filters) => {
+    let query = 'SELECT * FROM movies WHERE id NOT IN (SELECT DISTINCT movieId FROM rooms WHERE movieId IS NOT NULL';
+    let params = [];
+    
+    try {
+        const [movies] = await pool.promise().query(query, params);
+        return movies;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 const createMovie = async (movie) => {
     const { title, synopsis, duration, posterUrl } = movie;
     
