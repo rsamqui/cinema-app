@@ -1,8 +1,11 @@
 class Room{
-    constructor(id, name, movieId){
+    constructor(id, roomNumber, movieId, totalRows, totalColumns, totalSetas){
         this.id = id,
-        this.name = name,
+        this.roomNumber = roomNumber,
         this.movieId = movieId
+        this.totalRows = totalRows,
+        this.totalColumns = totalColumns,
+        this.totalSetas = totalSetas
     }
 }
 
