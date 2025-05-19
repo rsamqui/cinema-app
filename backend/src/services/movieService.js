@@ -38,8 +38,8 @@ const getNowShowingMovies = async () => {
     }
 };
 
-const getMovies = async (filters = {}) => { 
-    let query = 'SELECT id, title, synopsis, duration, posterUrl FROM movies WHERE 1=1';
+const getMovies = async (filters) => {
+    let query = 'SELECT * FROM movies WHERE 1=1';
     let params = [];
 
     if (filters.id) {
@@ -47,9 +47,9 @@ const getMovies = async (filters = {}) => {
         params.push(filters.id);
     }
 
-    if (filters.title) { 
-        query += ' AND title LIKE ?';
-        params.push(`%${filters.title}%`);
+    if (filters.title) {
+        query += ' AND title = ?';
+        params.push(filters.title);
     }
 
     try {
