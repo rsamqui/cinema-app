@@ -71,11 +71,15 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
             [bookingSeatInserts]
         );
 
+        if (seatDbIds.length > 0) { 
+            const updateSeatQuery = 'UPDATE seats SET status = ? WHERE id IN (?)';
+            await connection.query(updateSeatQuery, [newSeatStatus, seatDbIds]);
+        }
+
         await connection.commit();
         
         const ticketDetails = await getBookingDetailsForTicket(bookingId, connection);
         
-        connection.release();
         return ticketDetails;
 
     } catch (error) {
@@ -86,7 +90,6 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
         if (connection) connection.release();
     }
 };
-
 
 const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
     const conn = dbConnection || await pool.promise(); // Use passed connection or get new one
@@ -185,4 +188,4 @@ const deleteBooking = async (bookingId) => {
 };
 
 
-module.exports = { getBookings, createBooking, deleteBooking };
+module.exports = { getBookings, createBooking, getBookingDetailsForTicket, deleteBooking };

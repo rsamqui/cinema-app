@@ -1,7 +1,10 @@
 class Booking {
-    constructor(id, userId, seatId, bookDate) {
+    constructor(id, userId, roomId, movieId, price, showDate) {
         this.id = id;
         this.userId = userId;
-        this.bookDate = bookDate;
+        this.roomId = roomId;
+        this.movieId = movieId;
+        this.price = price;
+        this.showDate = showDate;
     }
 }
