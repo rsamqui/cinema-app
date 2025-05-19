@@ -2,8 +2,7 @@ const pool = require('../config/db');
 
 const getRoomByIdWithLayout = async (roomId) => {
   try {
-    // 1. Fetch room metadata
-    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE id = ?';
+    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, name FROM rooms WHERE id = ?';
     const [roomRows] = await pool.promise().query(roomQuery, [roomId]);
 
     if (roomRows.length === 0) {
@@ -11,11 +10,9 @@ const getRoomByIdWithLayout = async (roomId) => {
     }
     const roomData = roomRows[0];
 
-    // 2. Fetch associated seats
-    const seatsQuery = 'SELECT rowLetter, colNumber, status FROM seats WHERE roomId = ?';
+    const seatsQuery = 'SELECT rowLetter, colNumber, status FROM seats WHERE roomId = ? ORDER BY rowLetter, colNumber';
     const [seatRows] = await pool.promise().query(seatsQuery, [roomId]);
 
-    // 3. Format seatLayout for the frontend
     const seatLayout = seatRows.map(seat => ({
       id: `${seat.rowLetter}${seat.colNumber}`,
       status: seat.status,
@@ -32,21 +29,19 @@ const getRoomByIdWithLayout = async (roomId) => {
   }
 };
 
-// Your existing getRooms might be for fetching a list of rooms without detailed seats
 const getRooms = async (filters) => {
-    let query = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE 1=1'; // Added 'totalSeats'
-    let params = [];
-
     if (filters.id) {
-        query += ' AND id = ?';
-        params.push(filters.id);
-    }
-
-    try {
-        const [rooms] = await pool.promise().query(query, params);
-        return rooms;
-    } catch (error) {
-        throw new Error(error.message);
+        const roomDetail = await getRoomByIdWithLayout(filters.id);
+        return roomDetail ? [roomDetail] : []; 
+    } else {
+        let query = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE 1=1';
+        let params = [];
+        try {
+            const [rooms] = await pool.promise().query(query, params);
+            return rooms;
+        } catch (error) {
+            throw new Error(error.message);
+        }
     }
 };
 
@@ -81,7 +76,7 @@ const createRoom = async (room) => {
   
 
 const updateRoom = async (roomId, roomDataFromFrontend) => {
-    const { roomNumber, movieId, totalRows, totalColumns, name, layout } = roomDataFromFrontend;
+    const { roomNumber, movieId, totalRows, totalColumns, layout } = roomDataFromFrontend;
 
     const connection = await pool.promise().getConnection();
     try {
@@ -122,8 +117,6 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
             paramsForUpdate.push(roomId);
             const [result] = await connection.query(updateRoomQuery, paramsForUpdate);
             if (result.affectedRows === 0) {
-                // This might happen if no actual values changed, or room not found
-                // Consider if this should be an error or just a "no update needed"
                 console.warn('Room metadata update affected 0 rows. Room ID:', roomId);
             }
         }
@@ -134,7 +127,6 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
         if (dimensionsChanged) {
-            // If dimensions change, it's usually easiest to delete and recreate all seats
             await connection.query('DELETE FROM seats WHERE roomId = ?', [roomId]);
             const seatInserts = [];
             for (let i = 0; i < finalRows; i++) {
@@ -150,21 +142,19 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
             }
         } else if (layout) {
             await connection.query(
-                "UPDATE seats SET status = 'available' WHERE roomId = ? AND status = 'blocked'", // Only unblock previously 'blocked' seats
-                [roomId]
+                "UPDATE seats SET status = ? WHERE roomId = ? AND status NOT IN (?, ?)",
+                [SEAT_STATUS.AVAILABLE, roomId, SEAT_STATUS.OCCUPIED, SEAT_STATUS.RESERVED]
             );
             for (const seat of layout) {
-                if (seat.status === 'blocked') { // Only process 'blocked' statuses from frontend for this update
-                    const rowLetter = seat.id.charAt(0);
-                    const colNumber = parseInt(seat.id.substring(1));
-                    // Update to blocked, but be careful not to override a 'taken' or 'reserved' seat
-                    // (though admin UI should prevent this).
-                    await connection.query(
-                        "UPDATE seats SET status = 'blocked' WHERE roomId = ? AND rowLetter = ? AND colNumber = ? AND status = 'available'",
-                        [roomId, rowLetter, colNumber]
-                    );
-                }
-            }
+        if (seat.status === SEAT_STATUS.UNAVAILABLE_ADMIN) {
+            const rowLetter = seat.id.charAt(0);
+            const colNumber = parseInt(seat.id.substring(1));
+            await connection.query(
+                "UPDATE seats SET status = ? WHERE roomId = ? AND rowLetter = ? AND colNumber = ? AND status NOT IN (?, ?)",
+                [SEAT_STATUS.UNAVAILABLE_ADMIN, roomId, rowLetter, colNumber, SEAT_STATUS.OCCUPIED, SEAT_STATUS.RESERVED]
+            );
+        }
+    }
         }
 
         await connection.commit();
