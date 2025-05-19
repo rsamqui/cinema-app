@@ -23,7 +23,7 @@ const getMovies = async (filters) => {
 };
 
 const getAvailableMovies = async (filters) => {
-    let query = 'SELECT * FROM movies WHERE id NOT IN (SELECT DISTINCT movieId FROM rooms WHERE movieId IS NOT NULL';
+    let query = 'SELECT * FROM movies WHERE id NOT IN (SELECT DISTINCT movieId FROM rooms WHERE movieId IS NOT NULL)';
     let params = [];
     
     try {
