@@ -2,7 +2,7 @@ const pool = require('../config/db');
 
 const getRoomByIdWithLayout = async (roomId) => {
   try {
-    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, name FROM rooms WHERE id = ?';
+    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE id = ?';
     const [roomRows] = await pool.promise().query(roomQuery, [roomId]);
 
     if (roomRows.length === 0) {
