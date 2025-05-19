@@ -1,7 +1,45 @@
 const pool = require('../config/db');
 
-const getMovies = async (filters) => {
-    let query = 'SELECT * FROM movies WHERE 1=1';
+const getNowShowingMovies = async () => {
+    const query = `
+        SELECT 
+            r.id AS roomId, 
+            r.roomNumber,
+            m.id AS movieId, 
+            m.title AS movieTitle, 
+            m.synopsis AS movieSynopsis, 
+            m.duration AS movieDuration, 
+            m.posterUrl AS moviePosterUrl,
+        FROM rooms r
+        JOIN movies m ON r.movieId = m.id
+        WHERE r.movieId IS NOT NULL; 
+    `;
+
+    try {
+        const [results] = await pool.promise().query(query);
+
+        const nowShowing = results.map(row => ({
+            screeningId: `scr-${row.roomId}-${row.movieId}`,
+            roomId: row.roomId,
+            roomNumber: row.roomNumber,
+            movie: {
+                id: row.movieId,
+                title: row.movieTitle,
+                synopsis: row.movieSynopsis,
+                duration: row.movieDuration,
+                posterUrl: row.moviePosterUrl
+            }
+        }));
+        
+        return nowShowing;
+    } catch (error) {
+        console.error("Error fetching now showing movies:", error);
+        throw new Error('Failed to fetch now showing movies: ' + error.message);
+    }
+};
+
+const getMovies = async (filters = {}) => { 
+    let query = 'SELECT id, title, synopsis, duration, posterUrl FROM movies WHERE 1=1';
     let params = [];
 
     if (filters.id) {
@@ -9,9 +47,9 @@ const getMovies = async (filters) => {
         params.push(filters.id);
     }
 
-    if (filters.title) {
-        query += ' AND title = ?';
-        params.push(filters.title);
+    if (filters.title) { 
+        query += ' AND title LIKE ?';
+        params.push(`%${filters.title}%`);
     }
 
     try {
@@ -33,6 +71,7 @@ const getAvailableMovies = async (filters) => {
         throw new Error(error.message);
     }
 };
+
 
 const createMovie = async (movie) => {
     const { title, synopsis, duration, posterUrl } = movie;
@@ -120,4 +159,4 @@ const deleteMovie = async (id) => {
     }
 };
 
-module.exports = { getMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
+module.exports = { getMovies, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
