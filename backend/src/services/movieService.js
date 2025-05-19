@@ -60,8 +60,20 @@ const getMovies = async (filters) => {
     }
 };
 
-const getMovieById = async (id) => {
-    const query = 'SELECT * FROM movies WHERE id = ?';
+const getNowShowingById = async (id) => {
+    const query = `
+        SELECT 
+            r.id AS roomId, 
+            r.roomNumber,
+            m.id AS movieId, 
+            m.title AS movieTitle, 
+            m.synopsis AS movieSynopsis, 
+            m.duration AS movieDuration, 
+            m.posterUrl AS moviePosterUrl
+        FROM rooms r
+        JOIN movies m ON r.movieId = m.id
+        WHERE r.movieId = ?; 
+    `;;
     const params = [id];
 
     try {
@@ -171,4 +183,4 @@ const deleteMovie = async (id) => {
     }
 };
 
-module.exports = { getMovies, getMovieById, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
+module.exports = { getMovies, getNowShowingById, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
