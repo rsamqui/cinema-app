@@ -14,6 +14,21 @@ exports.getMovies = async (req, res) => {
     }
 };
 
+exports.getMovieById = async (req, res) => {
+    try {
+        const movieId = req.params.id;
+        const movie = await movieService.getMovieById(movieId);
+
+        if (!movie) {
+            return res.status(404).json({ error: 'Pelicula no encontrada' });
+        }
+
+        res.json(movie);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
 exports.getNowShowingMovies = async (req, res) => {
     try {
         const filters = {

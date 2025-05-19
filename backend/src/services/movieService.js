@@ -60,6 +60,18 @@ const getMovies = async (filters) => {
     }
 };
 
+const getMovieById = async (id) => {
+    const query = 'SELECT * FROM movies WHERE id = ?';
+    const params = [id];
+
+    try {
+        const [movies] = await pool.promise().query(query, params);
+        return movies[0];
+    } catch (error) {
+        throw new Error(error.message);
+    }
+}
+
 const getAvailableMovies = async (filters) => {
     let query = 'SELECT * FROM movies WHERE id NOT IN (SELECT DISTINCT movieId FROM rooms WHERE movieId IS NOT NULL)';
     let params = [];
@@ -159,4 +171,4 @@ const deleteMovie = async (id) => {
     }
 };
 
-module.exports = { getMovies, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
+module.exports = { getMovies, getMovieById, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
