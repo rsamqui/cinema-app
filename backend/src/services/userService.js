@@ -67,6 +67,17 @@ const getUsers = async (filters) => {
     }
 };
 
+const getUserById = async (id) => {
+    const query = 'SELECT id, name, email, role FROM users WHERE id = ?';
+    let params = [id];
+    try {
+        const [results] = await pool.promise().query(query, params);
+        return results;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 const createUser = async (userData) => {
     const { name, email, password, role = 'client' } = userData;
 
@@ -159,4 +170,4 @@ const deleteUser = async (userId) => {
     }
 };
 
-module.exports = { loginUser, getUsers, createUser, updateUser, deleteUser };
+module.exports = { loginUser, getUsers, getUserById, createUser, updateUser, deleteUser };
