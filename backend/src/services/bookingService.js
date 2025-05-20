@@ -91,7 +91,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
         console.log("Backend: Parameters for INSERT bookings:", JSON.stringify(insertParams));
 
         const [bookingResult] = await connection.query(
-            'INSERT INTO bookings (userId, roomId, movieId, price, showDate) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO bookings (userId, roomId, movieId, showDate, price) VALUES (?, ?, ?, ?, ?)',
             insertParams
         );
         const bookingId = bookingResult.insertId;
