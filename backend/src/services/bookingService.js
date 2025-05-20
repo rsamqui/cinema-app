@@ -106,7 +106,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
 
         // 3. Link seats to the booking
         const bookingSeatInserts = seatDbIds.map(seatDbId => [bookingId, seatDbId]);
-        await connection.query('INSERT INTO booking_seats (bookingId, seatId) VALUES ?', [bookingSeatInserts]);
+        await connection.query('INSERT INTO bookingseats (bookingId, seatId) VALUES ?', [bookingSeatInserts]);
 
         if (initialBookingStatus === 'confirmed' && seatDbIds.length > 0) {
             await connection.query(
