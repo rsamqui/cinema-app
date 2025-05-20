@@ -87,7 +87,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             throw new Error(`Seat(s) already taken for this date: ${takenIds}. Please select others.`);
         }
 
-        const insertParams = [userId, roomId, movieId, formattedShowDate, price];
+        const insertParams = [userId, roomId, movieId, formattedShowDateForDB, price];
         console.log("Backend: Parameters for INSERT bookings:", JSON.stringify(insertParams));
 
         const [bookingResult] = await connection.query(
