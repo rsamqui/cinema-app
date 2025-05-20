@@ -27,8 +27,8 @@ const getBookings = async (filters) => {
     }
 };
 
-const createBooking = async ({ userId, roomId, movieId, seatDbIds, totalPrice, showDate }) => {
-    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || totalPrice === undefined || !showDate) {
+const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDate }) => {
+    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || price === undefined || !showDate) {
         throw new Error('User ID, Room ID, Show Date, Total Price, and at least one Seat DB ID are required');
     }
 
