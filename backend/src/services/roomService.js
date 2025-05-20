@@ -3,7 +3,7 @@ const { SEAT_STATUS } = require('../utils/seatConstants');
 
 const getRoomByIdWithLayout = async (roomId, showDate) => { 
   try {
-    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, name FROM rooms WHERE id = ?';
+    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE id = ?';
     const [roomRows] = await pool.promise().query(roomQuery, [roomId]);
 
     if (roomRows.length === 0) {
