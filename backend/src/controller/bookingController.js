@@ -18,13 +18,13 @@ exports.getBookings = async (req, res) => {
 };
 
 exports.createBooking = async (req, res) => {
-    console.log(req.body);
-    
+    console.log("Backend Controller: Received req.body for booking:", JSON.stringify(req.body, null, 2));
     try {
-        const newBooking = await bookingService.createBooking(req.body);
-        res.status(201).json(newBooking);
+        const newBookingTicketDetails = await bookingService.createBooking(req.body);
+        res.status(201).json(newBookingTicketDetails);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Backend Controller Error in createBooking:", error.message);
+        res.status(400).json({ error: error.message });
     }
 };
 
