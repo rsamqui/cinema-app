@@ -70,7 +70,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
         const placeholders = seatDbIds.map(() => '?').join(',');
         const availabilityQuery = `
             SELECT bs.seatId 
-            FROM booking_seats bs
+            FROM bookingseats bs
             JOIN bookings b ON bs.bookingId = b.id
             WHERE b.roomId = ? AND b.showDate = ? AND bs.seatId IN (${placeholders})
         `;
