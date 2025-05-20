@@ -11,15 +11,15 @@ const getRoomByIdWithLayout = async (roomId) => {
     }
     const roomData = roomRows[0];
 
-    const seatsQuery = 'SELECT rowLetter, colNumber, status FROM seats WHERE roomId = ? ORDER BY rowLetter, colNumber';
+    const seatsQuery = 'SELECT s.id AS seatDbId, s.rowLetter, s.colNumber, s.status FROM seats s WHERE s.roomId = ? ORDER BY s.rowLetter, s.colNumber;';
     const [seatRows] = await pool.promise().query(seatsQuery, [roomId]);
 
     const seatLayout = seatRows.map(seat => ({
       id: `${seat.rowLetter}${seat.colNumber}`,
       status: seat.status,
+      dbId: seat.seatDbId,
     }));
 
-    // 4. Combine and return
     return {
       ...roomData,
       seatLayout: seatLayout,
@@ -82,7 +82,6 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
     try {
         await connection.beginTransaction();
 
-        // --- Part 1: Update Room Metadata ---
         const fieldsToUpdate = [];
         const paramsForUpdate = [];
         const isValid = (value) => value !== undefined && value !== null && value !== '';
@@ -94,17 +93,16 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
         let oldRows, oldCols;
         let finalRows = null, finalCols = null;
 
-        // Fetch current dimensions if rows/cols are part of the update, to see if they changed
         const [currentRoomState] = await connection.query('SELECT totalRows, totalColumns FROM rooms WHERE id = ?', [roomId]);
         if (currentRoomState.length === 0) {
-            await connection.rollback(); // Rollback before throwing
+            await connection.rollback();
             connection.release();
             throw new Error('Room not found for dimension check');
         }
         oldRows = currentRoomState[0].totalRows;
         oldCols = currentRoomState[0].totalColumns;
 
-        finalRows = oldRows; // Start with old values
+        finalRows = oldRows;
         finalCols = oldCols;
 
         if (isValid(totalRows)) {
@@ -112,7 +110,7 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
             if (parsedTotalRows !== oldRows) {
                 fieldsToUpdate.push('totalRows = ?');
                 paramsForUpdate.push(parsedTotalRows);
-                finalRows = parsedTotalRows; // Update finalRows for seat generation
+                finalRows = parsedTotalRows;
                 dimensionsChanged = true;
             }
         }
@@ -121,7 +119,7 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
             if (parsedTotalColumns !== oldCols) {
                 fieldsToUpdate.push('totalColumns = ?');
                 paramsForUpdate.push(parsedTotalColumns);
-                finalCols = parsedTotalColumns; // Update finalCols for seat generation
+                finalCols = parsedTotalColumns;
                 dimensionsChanged = true;
             }
         }
@@ -131,25 +129,21 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
             paramsForUpdate.push(roomId);
             const [result] = await connection.query(updateRoomQuery, paramsForUpdate);
             if (result.affectedRows === 0) {
-                // This could mean room not found or no actual change in values.
-                // If room not found, it should have been caught by the dimension check.
                 console.warn('Room metadata update affected 0 rows. Room ID:', roomId);
             }
         }
 
-        // --- Part 2: Update/Recreate Seat Layout ---
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
         if (dimensionsChanged) {
             console.log(`Dimensions changed for room ${roomId}. Recreating seats.`);
             await connection.query('DELETE FROM seats WHERE roomId = ?', [roomId]);
             const seatInserts = [];
-            if (finalRows > 0 && finalCols > 0) { // Ensure finalRows/finalCols are positive
+            if (finalRows > 0 && finalCols > 0) {
                 for (let i = 0; i < finalRows; i++) {
                     const rowLetter = alphabet[i];
                     for (let j = 1; j <= finalCols; j++) {
                         const seatIdFromLayoutFormat = `${rowLetter}${j}`;
-                        // Check if this newly generated seat should be 'blocked' (or 'unavailable_admin') based on incoming layout
                         const layoutSeatInfo = layout && layout.find(s => s.id === seatIdFromLayout);
                         const status = (layoutSeatInfo && layoutSeatInfo.status === SEAT_STATUS.UNAVAILABLE_ADMIN) // Use your admin-set unavailable status
                                      ? SEAT_STATUS.UNAVAILABLE_ADMIN
@@ -162,11 +156,9 @@ const updateRoom = async (roomId, roomDataFromFrontend) => {
                 const seatQuery = 'INSERT INTO seats (roomId, rowLetter, colNumber, status) VALUES ?';
                 await connection.query(seatQuery, [seatInserts]);
             }
-        } else if (layout) { // Dimensions did not change, but layout (blocked seats) might have
+        } else if (layout) {
             console.log(`Updating seat statuses for room ${roomId} based on provided layout.`);
-            // Step 1: Set all current 'unavailable_admin' seats for this room back to 'available'
-            // This effectively unblocks everything first, then re-applies blocks from the 'layout' payload.
-            // Be careful not to affect 'occupied' or 'reserved' seats.
+
             await connection.query(
                 "UPDATE seats SET status = ? WHERE roomId = ? AND status = ?",
                 [SEAT_STATUS.AVAILABLE, roomId, SEAT_STATUS.UNAVAILABLE_ADMIN]
