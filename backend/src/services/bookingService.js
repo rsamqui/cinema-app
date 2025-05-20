@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { SEAT_STATUS } = require('../constants/seatConstants');
+const { SEAT_STATUS } = require('../utils/seatConstants');
 
 const getBookings = async (filters) => {
     let query = 'SELECT * FROM bookings WHERE 1=1';
