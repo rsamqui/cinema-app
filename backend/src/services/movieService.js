@@ -38,6 +38,17 @@ const getNowShowingMovies = async () => {
     }
 };
 
+const getMovieById = async (id) => {
+    const query = 'SELECT * FROM movies WHERE id = ?';
+    const params = [id];
+    try {
+        const [movies] = await pool.promise().query(query, params);
+        return movies;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 const getMovies = async (filters) => {
     let query = 'SELECT * FROM movies WHERE 1=1';
     let params = [];
@@ -183,4 +194,4 @@ const deleteMovie = async (id) => {
     }
 };
 
-module.exports = { getMovies, getNowShowingById, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
+module.exports = { getMovies, getMovieById, getNowShowingById, getNowShowingMovies, getAvailableMovies, createMovie, updateMovie, deleteMovie };
