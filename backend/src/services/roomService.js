@@ -1,32 +1,75 @@
 const pool = require('../config/db');
 const { SEAT_STATUS } = require('../utils/seatConstants');
 
-const getRoomByIdWithLayout = async (roomId) => {
+const getRoomByIdWithLayout = async (roomId, showDate) => { 
   try {
-    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE id = ?';
+    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, name FROM rooms WHERE id = ?';
     const [roomRows] = await pool.promise().query(roomQuery, [roomId]);
 
     if (roomRows.length === 0) {
+
       throw new Error('Room not found');
     }
     const roomData = roomRows[0];
 
-    const seatsQuery = 'SELECT s.id AS seatDbId, s.rowLetter, s.colNumber, s.status FROM seats s WHERE s.roomId = ? ORDER BY s.rowLetter, s.colNumber;';
-    const [seatRows] = await pool.promise().query(seatsQuery, [roomId]);
+    const physicalSeatsQuery = `
+      SELECT 
+        id AS dbId,
+        rowLetter, 
+        colNumber, 
+        status AS baseStatus
+      FROM seats 
+      WHERE roomId = ? 
+      ORDER BY rowLetter, colNumber;
+    `;
+    const [physicalSeatRows] = await pool.promise().query(physicalSeatsQuery, [roomId]);
 
-    const seatLayout = seatRows.map(seat => ({
-      id: `${seat.rowLetter}${seat.colNumber}`,
-      status: seat.status,
-      dbId: seat.seatDbId,
-    }));
+    if (!showDate) {
+        const seatLayout = physicalSeatRows.map(seat => ({
+            id: `${seat.rowLetter}${seat.colNumber}`,
+            status: seat.baseStatus,
+            dbId: seat.dbId,
+        }));
+        return { 
+            ...roomData,
+            seatLayout: seatLayout,
+        };
+    }
+    const formattedShowDateForDB = new Date(showDate).toISOString().slice(0, 10);
+    const bookedOrReservedSeatIdsQuery = `
+      SELECT DISTINCT bs.seatId 
+      FROM booking_seats bs
+      JOIN bookings b ON bs.bookingId = b.id
+      WHERE b.roomId = ? AND b.show_date = ? AND b.status = 'confirmed' 
+    `; 
+
+    const [bookedSeatRows] = await pool.promise().query(bookedOrReservedSeatIdsQuery, [roomId, formattedShowDateForDB]);
+    const bookedOrReservedDbIds = new Set(bookedSeatRows.map(s => s.seatId));
+
+    const seatLayout = physicalSeatRows.map(seat => {
+      let currentStatus = seat.baseStatus;
+
+      if (currentStatus === SEAT_STATUS.AVAILABLE) {
+        if (bookedOrReservedDbIds.has(seat.dbId)) {
+          currentStatus = SEAT_STATUS.TAKEN; 
+        }
+      }
+
+      return {
+        id: `${seat.rowLetter}${seat.colNumber}`, // Display ID
+        status: currentStatus,
+        dbId: seat.dbId,
+      };
+    });
 
     return {
       ...roomData,
       seatLayout: seatLayout,
     };
+
   } catch (error) {
-    console.error(`Error fetching room details for ID ${roomId}:`, error);
-    throw error;
+    console.error(`Error fetching room details for ID ${roomId} on date ${showDate}:`, error);
+    throw error; // Rethrow for the controller to handle
   }
 };
 
