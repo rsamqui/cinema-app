@@ -87,9 +87,12 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             throw new Error(`Seat(s) already taken for this date: ${takenIds}. Please select others.`);
         }
 
+        const insertParams = [userId, roomId, movieId, formattedShowDate, price];
+        console.log("Backend: Parameters for INSERT bookings:", JSON.stringify(insertParams));
+
         const [bookingResult] = await connection.query(
             'INSERT INTO bookings (userId, roomId, movieId, price, showDate) VALUES (?, ?, ?, ?, ?)',
-            [userId, roomId, movieId, formattedShowDateForDB, totalPrice]
+            insertParams
         );
         const bookingId = bookingResult.insertId;
 
