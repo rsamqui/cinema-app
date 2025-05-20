@@ -37,11 +37,11 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
     try {
         await connection.beginTransaction();
 
-        const [roomRows] = await connection.query('SELECT movieId FROM rooms WHERE id = ?', [roomId]);
-        if (roomRows.length === 0) {
-            throw new Error('Room not found.');
-        }
-        const movieId = roomRows[0].movieId;
+        //const [roomRows] = await connection.query('SELECT movieId FROM rooms WHERE id = ?', [roomId]);
+        //if (roomRows.length === 0) {
+        //    throw new Error('Room not found.');
+        //}
+        //const movieId = roomRows[0].movieId;
 
         const placeholders = seatDbIds.map(() => '?').join(',');
         const availabilityQuery = `
@@ -50,6 +50,8 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
             JOIN bookings b ON bs.bookingId = b.id
             WHERE b.roomId = ? AND b.showDate = ? AND bs.seatId IN (${placeholders})
         `;
+
+        const formattedQueryShowDate = new Date(showDate).toISOString().slice(0, 10);
 
         const [alreadyBookedSeats] = await connection.query(availabilityQuery, [roomId, showDate, ...seatDbIds]);
 
@@ -130,7 +132,13 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         console.error("Error fetching booking details for ticket:", error);
         throw error;
     } finally {
-        if (!dbConnection && conn) await conn.release(); // Release only if we got a new connection
+        if (!dbConnection && conn) {
+            try {
+                await conn.release();
+            } catch (relError) {
+                console.error("Error releasing connection in getBookingDetailsForTicket:", relError);
+            }
+        }
     }
 };
 
