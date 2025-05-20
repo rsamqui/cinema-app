@@ -63,7 +63,6 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
 
     try {
         await connection.beginTransaction();
-
         const formattedShowDateForDB = new Date(showDate).toISOString().slice(0, 10);
         console.log(`Backend createBooking: Received showDate '${showDate}', Formatted for DB query: '${formattedShowDateForDB}'`);
 
@@ -73,6 +72,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             FROM bookingseats bs
             JOIN bookings b ON bs.bookingId = b.id
             WHERE b.roomId = ? AND b.showDate = ? AND bs.seatId IN (${placeholders})
+            AND b.status IN ('confirmed', 'pending')
         `;
 
         const [alreadyBookedSeats] = await connection.query(
@@ -82,35 +82,46 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
 
         if (alreadyBookedSeats.length > 0) {
             const takenIds = alreadyBookedSeats.map(seat => seat.seatId).join(', ');
-            await connection.rollback();
-            connection.release();
             throw new Error(`Seat(s) already taken for this date: ${takenIds}. Please select others.`);
         }
 
-        const insertParams = [userId, roomId, movieId, formattedShowDateForDB, price];
-        console.log("Backend: Parameters for INSERT bookings:", JSON.stringify(insertParams));
+        if (seatDbIds.length > 0) {
+            const [unavailableAdminSeats] = await connection.query(
+                `SELECT id FROM seats WHERE id IN (${placeholders}) AND status = ?`,
+                [...seatDbIds, SEAT_STATUS.UNAVAILABLE_ADMIN]
+            );
+            if (unavailableAdminSeats.length > 0) {
+                const unavailableIds = unavailableAdminSeats.map(s => s.id).join(', ');
+                throw new Error(`Seat(s) ${unavailableIds} are permanently unavailable.`);
+            }
+        }
 
+        // 2. Create the booking record with a status
+        const initialBookingStatus = 'confirmed'; // Or 'pending_payment' if payment is a separate step
         const [bookingResult] = await connection.query(
-            'INSERT INTO bookings (userId, roomId, movieId, showDate, price) VALUES (?, ?, ?, ?, ?)',
-            insertParams
+            'INSERT INTO bookings (userId, roomId, movieId, show_date, total_price, status, booking_transaction_time) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+            [userId, roomId, movieId, formattedShowDateForDB, totalPrice, initialBookingStatus]
         );
         const bookingId = bookingResult.insertId;
 
+        // 3. Link seats to the booking
         const bookingSeatInserts = seatDbIds.map(seatDbId => [bookingId, seatDbId]);
-        await connection.query(
-            'INSERT INTO bookingseats (bookingId, seatId) VALUES ?',
-            [bookingSeatInserts]
-        );
+        await connection.query('INSERT INTO booking_seats (bookingId, seatId) VALUES ?', [bookingSeatInserts]);
 
-        if (seatDbIds.length > 0) {
-            const updateSeatQuery = 'UPDATE seats SET status = ? WHERE id IN (?)';
-            await connection.query(updateSeatQuery, [SEAT_STATUS.OCCUPIED, seatDbIds]);
+        if (initialBookingStatus === 'confirmed' && seatDbIds.length > 0) {
+            await connection.query(
+                'UPDATE seats SET status = ? WHERE id IN (?)',
+                [SEAT_STATUS.TAKEN, seatDbIds]
+            );
+        } else if (initialBookingStatus === 'pending_payment' && seatDbIds.length > 0) {
+             await connection.query(
+                'UPDATE seats SET status = ? WHERE id IN (?)',
+                [SEAT_STATUS.RESERVED, seatDbIds] // Assuming you have RESERVED in SEAT_STATUS
+            );
         }
 
         await connection.commit();
-        
-        const ticketDetails = await getBookingDetailsForTicket(bookingId, connection); 
-        
+        const ticketDetails = await getBookingDetailsForTicket(bookingId, connection);
         return ticketDetails;
 
     } catch (error) {
@@ -135,18 +146,20 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
 };
 
 const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
-    const conn = dbConnection || await pool.promise(); // Use passed connection or get new one
+    const conn = dbConnection || await pool.promise().getConnection();
     const query = `
         SELECT
             b.id AS bookingId,
             b.showDate AS showDate, 
             b.price AS totalPrice,
+            b.status AS bookingStatus,
             u.name AS userName,
             u.email AS userEmail,
             m.title AS movieTitle,
             m.duration AS movieDuration,
+            m.posterUrl AS moviePosterUrl,
             r.roomNumber,
-            GROUP_CONCAT(CONCAT(s.rowLetter, s.colNumber) ORDER BY s.rowLetter, s.colNumber SEPARATOR ', ') AS bookedSeatsString
+            GROUP_CONCAT(DISTINCT CONCAT(s.rowLetter, s.colNumber) ORDER BY s.rowLetter, s.colNumber SEPARATOR ', ') AS bookedSeatsString
         FROM bookings b
         JOIN users u ON b.userId = u.id
         JOIN rooms r ON b.roomId = r.id
@@ -154,16 +167,17 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         JOIN bookingseats bs ON b.id = bs.bookingId
         JOIN seats s ON bs.seatId = s.id
         WHERE b.id = ?
-        GROUP BY b.id, u.name, u.email, m.title, m.duration, m.posterUrl, r.roomNumber, b.showDate, b.price;
+        GROUP BY 
+            b.id, b.show_date, , b.tprice, b.status,
+            u.name, u.email, 
+            m.title, m.duration, m.posterUrl,
+            r.roomNumber, r.name;
     `;
     try {
         const [rows] = await conn.query(query, [bookingId]);
-        if (rows.length === 0) {
-            throw new Error("Booking not found for ticket generation.");
-        }
+        if (rows.length === 0) throw Error("Booking not found for ticket generation.");
         const bookingDetail = rows[0];
-        const qrCodeData = `BOOKING_ID:${bookingDetail.bookingId};MOVIE:${bookingDetail.movieTitle};DATE:${bookingDetail.showDate};SEATS:${bookingDetail.bookedSeatsString}`;
-
+        const qrCodeData = `BOOKING_ID:${bookingDetail.bookingId};STATUS:${bookingDetail.bookingStatus}`; // Added status to QR
         return {
             ...bookingDetail,
             seats: bookingDetail.bookedSeatsString ? bookingDetail.bookedSeatsString.split(', ').map(s => ({ id: s })) : [],
@@ -174,11 +188,7 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         throw error;
     } finally {
         if (!dbConnection && conn) {
-            try {
-                await conn.release();
-            } catch (relError) {
-                console.error("Error releasing connection in getBookingDetailsForTicket:", relError);
-            }
+            try { await conn.release(); } catch (relError) { console.error("Error releasing connection:", relError); }
         }
     }
 };

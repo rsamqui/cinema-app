@@ -2,7 +2,7 @@ const SEAT_STATUS = {
   AVAILABLE: 'available',
   SELECTED: 'selected',
   RESERVED: 'reserved',
-  OCCUPIED: 'taken',      
+  TAKEN: 'taken',      
 };
 
 
