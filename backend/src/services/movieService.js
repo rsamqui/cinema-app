@@ -19,7 +19,7 @@ const getNowShowingMovies = async () => {
         const [results] = await pool.promise().query(query);
 
         const nowShowing = results.map(row => ({
-            screeningId: `scr-${row.roomId}-${row.movieId}`,
+            screeningId: `${row.roomId}`,
             roomId: row.roomId,
             roomNumber: row.roomNumber,
             movie: {
