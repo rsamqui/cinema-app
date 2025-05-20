@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { SEAT_STATUS } = require('../utils/seatConstants');
 
 const getRoomByIdWithLayout = async (roomId) => {
   try {
