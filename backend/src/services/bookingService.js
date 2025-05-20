@@ -99,7 +99,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
         // 2. Create the booking record with a status
         const initialBookingStatus = 'confirmed'; // Or 'pending_payment' if payment is a separate step
         const [bookingResult] = await connection.query(
-            'INSERT INTO bookings (userId, roomId, movieId, show_date, total_price, status, booking_transaction_time) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+            'INSERT INTO bookings (userId, roomId, movieId, showDate, total_price, status, booking_transaction_time) VALUES (?, ?, ?, ?, ?, ?, NOW())',
             [userId, roomId, movieId, formattedShowDateForDB, totalPrice, initialBookingStatus]
         );
         const bookingId = bookingResult.insertId;
@@ -168,7 +168,7 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         JOIN seats s ON bs.seatId = s.id
         WHERE b.id = ?
         GROUP BY 
-            b.id, b.show_date, , b.tprice, b.status,
+            b.id, b.showDate, , b.tprice, b.status,
             u.name, u.email, 
             m.title, m.duration, m.posterUrl,
             r.roomNumber, r.name;
