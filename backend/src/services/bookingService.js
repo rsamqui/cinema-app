@@ -30,9 +30,34 @@ const getBookings = async (filters) => {
 
 const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDate }) => {
     const totalPrice = price; 
-    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || totalPrice === undefined || !showDate) {
-        throw new Error('User ID, Room ID, Movie ID, Show Date, Total Price, and at least one Seat DB ID are required');
+    const missingFields = [];
+
+    if (!userId) {
+        missingFields.push("User ID (userId)");
     }
+    if (!roomId) {
+        missingFields.push("Room ID (roomId)");
+    }
+    if (!movieId) {
+        missingFields.push("Movie ID (movieId)");
+    }
+    if (!showDate) {
+        missingFields.push("Show Date (showDate)");
+    }
+    if (totalPrice === undefined) { // Check for undefined specifically if 0 is a valid price
+        missingFields.push("Total Price (totalPrice)");
+    }
+    // For seatDbIds, check if it's an array and if it's empty
+    if (!Array.isArray(seatDbIds) || seatDbIds.length === 0) {
+        missingFields.push("At least one Seat ID (seatDbIds array with content)");
+    }
+    if (missingFields.length > 0) {
+        const errorMessage = `Missing required fields: ${missingFields.join(', ')}.`;
+        console.error("Backend validation failed. Payload:", { userId, roomId, movieId, seatDbIds, totalPrice, showDate }, "Missing:", missingFields);
+        throw new Error(errorMessage); // This error message will be more specific
+    }
+
+    console.log("Backend createBooking - Parameters received after validation:", { userId, roomId, movieId, seatDbIds, totalPrice, showDate });
 
     const connection = await pool.promise().getConnection();
 
