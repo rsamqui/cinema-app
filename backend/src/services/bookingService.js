@@ -27,8 +27,8 @@ const getBookings = async (filters) => {
     }
 };
 
-const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => {
-    if (!userId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || !showDate || !roomId || price === undefined) {
+const createBooking = async ({ userId, roomId, movieId, seatDbIds, totalPrice, showDate }) => {
+    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || totalPrice === undefined || !showDate) {
         throw new Error('User ID, Room ID, Show Date, Total Price, and at least one Seat DB ID are required');
     }
 
@@ -36,12 +36,6 @@ const createBooking = async ({ userId, seatDbIds, showDate, roomId, price }) => 
 
     try {
         await connection.beginTransaction();
-
-        //const [roomRows] = await connection.query('SELECT movieId FROM rooms WHERE id = ?', [roomId]);
-        //if (roomRows.length === 0) {
-        //    throw new Error('Room not found.');
-        //}
-        //const movieId = roomRows[0].movieId;
 
         const placeholders = seatDbIds.map(() => '?').join(',');
         const availabilityQuery = `
