@@ -1,14 +1,15 @@
 const pool = require('../config/db');
 const { SEAT_STATUS } = require('../utils/seatConstants');
 
-const getRoomByIdWithLayout = async (roomId, showDate) => { 
+const getRoomByIdWithLayout = async (roomId, showDate) => {
   try {
-    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalSeats FROM rooms WHERE id = ?';
+    const roomQuery = 'SELECT id, roomNumber, movieId, totalRows, totalColumns, totalColumns FROM rooms WHERE id = ?'
     const [roomRows] = await pool.promise().query(roomQuery, [roomId]);
 
     if (roomRows.length === 0) {
-
-      throw new Error('Room not found');
+      const error = new Error('Room not found');
+      error.statusCode = 404;
+      throw error;
     }
     const roomData = roomRows[0];
 
@@ -24,43 +25,43 @@ const getRoomByIdWithLayout = async (roomId, showDate) => {
     `;
     const [physicalSeatRows] = await pool.promise().query(physicalSeatsQuery, [roomId]);
 
-    if (!showDate) {
-        const seatLayout = physicalSeatRows.map(seat => ({
-            id: `${seat.rowLetter}${seat.colNumber}`,
-            status: seat.baseStatus,
-            dbId: seat.dbId,
-        }));
-        return { 
-            ...roomData,
-            seatLayout: seatLayout,
-        };
+    let bookedOrReservedDbIdsForDate = new Set();
+    if (showDate) {
+      const formattedShowDateForDB = new Date(showDate).toISOString().slice(0, 10);
+      console.log(`Backend getRoomByIdWithLayout: Checking bookings for roomId: ${roomId}, showDate: ${formattedShowDateForDB}`);
+
+      const bookedSeatsQuery = `
+        SELECT DISTINCT bs.seatId 
+        FROM bookingseats bs
+        JOIN bookings b ON bs.bookingId = b.id
+        WHERE b.roomId = ? AND b.showDate = ? AND b.status = 'confirmed' 
+      `;
+
+      const [bookedRows] = await pool.promise().query(bookedSeatsQuery, [roomId, formattedShowDateForDB]);
+      bookedOrReservedDbIdsForDate = new Set(bookedRows.map(s => s.seatId));
+      console.log(`Backend getRoomByIdWithLayout: For Room ${roomId} on ${formattedShowDateForDB}, booked/reserved DB IDs:`, Array.from(bookedOrReservedDbIdsForDate));
     }
-    const formattedShowDateForDB = new Date(showDate).toISOString().slice(0, 10);
-    const bookedOrReservedSeatIdsQuery = `
-      SELECT DISTINCT bs.seatId 
-      FROM booking_seats bs
-      JOIN bookings b ON bs.bookingId = b.id
-      WHERE b.roomId = ? AND b.show_date = ? AND b.status = 'confirmed' 
-    `; 
 
-    const [bookedSeatRows] = await pool.promise().query(bookedOrReservedSeatIdsQuery, [roomId, formattedShowDateForDB]);
-    const bookedOrReservedDbIds = new Set(bookedSeatRows.map(s => s.seatId));
+    const seatLayout = physicalSeatRows.map(physicalSeat => {
+      let finalStatusForThisDate = physicalSeat.baseStatus;
 
-    const seatLayout = physicalSeatRows.map(seat => {
-      let currentStatus = seat.baseStatus;
-
-      if (currentStatus === SEAT_STATUS.AVAILABLE) {
-        if (bookedOrReservedDbIds.has(seat.dbId)) {
-          currentStatus = SEAT_STATUS.TAKEN; 
+      if (physicalSeat.baseStatus === SEAT_STATUS.UNAVAILABLE_ADMIN) {
+        finalStatusForThisDate = SEAT_STATUS.UNAVAILABLE_ADMIN;
+      }
+      else if (physicalSeat.baseStatus === SEAT_STATUS.AVAILABLE) {
+        if (showDate && bookedOrReservedDbIdsForDate.has(physicalSeat.dbId)) {
+          finalStatusForThisDate = SEAT_STATUS.OCCUPIED;
         }
       }
 
       return {
-        id: `${seat.rowLetter}${seat.colNumber}`, // Display ID
-        status: currentStatus,
-        dbId: seat.dbId,
+        id: `${physicalSeat.rowLetter}${physicalSeat.colNumber}`, // Display ID
+        status: finalStatusForThisDate,
+        dbId: physicalSeat.dbId,
       };
     });
+
+    console.log(`Backend: Room ${roomId}, Date ${showDate || 'N/A'}, Final seatLayout sample (first 5):`, JSON.stringify(seatLayout.slice(0,5)));
 
     return {
       ...roomData,
@@ -68,8 +69,8 @@ const getRoomByIdWithLayout = async (roomId, showDate) => {
     };
 
   } catch (error) {
-    console.error(`Error fetching room details for ID ${roomId} on date ${showDate}:`, error);
-    throw error; // Rethrow for the controller to handle
+    console.error(`Backend Error in getRoomByIdWithLayout for room ID ${roomId}, date ${showDate || 'N/A'}:`, error);
+    throw error;
   }
 };
 
