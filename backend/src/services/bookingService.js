@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { SEAT_STATUS } = require('../constants/seatConstants');
 
 const getBookings = async (filters) => {
     let query = 'SELECT * FROM bookings WHERE 1=1';
@@ -28,8 +29,9 @@ const getBookings = async (filters) => {
 };
 
 const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDate }) => {
-    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || price === undefined || !showDate) {
-        throw new Error('User ID, Room ID, Show Date, Total Price, and at least one Seat DB ID are required');
+    const totalPrice = price; 
+    if (!userId || !roomId || !movieId || !Array.isArray(seatDbIds) || seatDbIds.length === 0 || totalPrice === undefined || !showDate) {
+        throw new Error('User ID, Room ID, Movie ID, Show Date, Total Price, and at least one Seat DB ID are required');
     }
 
     const connection = await pool.promise().getConnection();
@@ -37,27 +39,32 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
     try {
         await connection.beginTransaction();
 
+        const formattedShowDateForDB = new Date(showDate).toISOString().slice(0, 10);
+        console.log(`Backend createBooking: Received showDate '${showDate}', Formatted for DB query: '${formattedShowDateForDB}'`);
+
         const placeholders = seatDbIds.map(() => '?').join(',');
         const availabilityQuery = `
             SELECT bs.seatId 
-            FROM bookingseats bs
+            FROM booking_seats bs
             JOIN bookings b ON bs.bookingId = b.id
-            WHERE b.roomId = ? AND b.showDate = ? AND bs.seatId IN (${placeholders})
+            WHERE b.roomId = ? AND b.show_date = ? AND bs.seatId IN (${placeholders})
         `;
 
-        const formattedQueryShowDate = new Date(showDate).toISOString().slice(0, 10);
-
-        const [alreadyBookedSeats] = await connection.query(availabilityQuery, [roomId, showDate, ...seatDbIds]);
+        const [alreadyBookedSeats] = await connection.query(
+            availabilityQuery,
+            [roomId, formattedShowDateForDB, ...seatDbIds]
+        );
 
         if (alreadyBookedSeats.length > 0) {
             const takenIds = alreadyBookedSeats.map(seat => seat.seatId).join(', ');
+            await connection.rollback();
+            connection.release();
             throw new Error(`Seat(s) already taken for this date: ${takenIds}. Please select others.`);
         }
-        const formattedShowDate = new Date(showDate).toISOString().slice(0, 10);
 
         const [bookingResult] = await connection.query(
-            'INSERT INTO bookings (userId, roomId, movieId, showDate, price) VALUES (?, ?, ?, ?, ?)',
-            [userId, roomId, movieId, formattedShowDate, price ]
+            'INSERT INTO bookings (userId, roomId, movieId, price, showDate) VALUES (?, ?, ?, ?, ?)',
+            [userId, roomId, movieId, formattedShowDateForDB, totalPrice]
         );
         const bookingId = bookingResult.insertId;
 
@@ -67,23 +74,35 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             [bookingSeatInserts]
         );
 
-        const newSeatStatus = 'taken';
-        if (seatDbIds.length > 0) { 
+        if (seatDbIds.length > 0) {
             const updateSeatQuery = 'UPDATE seats SET status = ? WHERE id IN (?)';
-            await connection.query(updateSeatQuery, [newSeatStatus, seatDbIds]);
+            await connection.query(updateSeatQuery, [SEAT_STATUS.OCCUPIED, seatDbIds]);
         }
 
         await connection.commit();
         
-        const ticketDetails = await getBookingDetailsForTicket(bookingId, connection);
+        const ticketDetails = await getBookingDetailsForTicket(bookingId, connection); 
+        
         return ticketDetails;
 
     } catch (error) {
-        if (connection) await connection.rollback(); 
-        console.error('Booking failed in backend:', error);
-        throw new Error('Booking failed: ' + error.message);
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error('Error during rollback:', rollbackError);
+            }
+        }
+        console.error('Booking failed in backend (bookingService.createBooking):', error);
+        throw new Error('Booking failed: ' + (error.sqlMessage || error.message));
     } finally {
-        if (connection) connection.release();
+        if (connection) {
+            try {
+                connection.release();
+            } catch (releaseError) {
+                console.error('Error releasing connection in bookingService.createBooking:', releaseError);
+            }
+        }
     }
 };
 
