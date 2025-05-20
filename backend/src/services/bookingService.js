@@ -47,7 +47,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             SELECT bs.seatId 
             FROM booking_seats bs
             JOIN bookings b ON bs.bookingId = b.id
-            WHERE b.roomId = ? AND b.show_date = ? AND bs.seatId IN (${placeholders})
+            WHERE b.roomId = ? AND b.showDate = ? AND bs.seatId IN (${placeholders})
         `;
 
         const [alreadyBookedSeats] = await connection.query(
