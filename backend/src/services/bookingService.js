@@ -44,17 +44,16 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
     if (!showDate) {
         missingFields.push("Show Date (showDate)");
     }
-    if (totalPrice === undefined) { // Check for undefined specifically if 0 is a valid price
+    if (totalPrice === undefined) { 
         missingFields.push("Total Price (totalPrice)");
     }
-    // For seatDbIds, check if it's an array and if it's empty
     if (!Array.isArray(seatDbIds) || seatDbIds.length === 0) {
         missingFields.push("At least one Seat ID (seatDbIds array with content)");
     }
     if (missingFields.length > 0) {
         const errorMessage = `Missing required fields: ${missingFields.join(', ')}.`;
         console.error("Backend validation failed. Payload:", { userId, roomId, movieId, seatDbIds, totalPrice, showDate }, "Missing:", missingFields);
-        throw new Error(errorMessage); // This error message will be more specific
+        throw new Error(errorMessage);
     }
 
     console.log("Backend createBooking - Parameters received after validation:", { userId, roomId, movieId, seatDbIds, totalPrice, showDate });
@@ -96,15 +95,13 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
             }
         }
 
-        // 2. Create the booking record with a status
-        const initialBookingStatus = 'confirmed'; // Or 'pending_payment' if payment is a separate step
+        const initialBookingStatus = 'confirmed';
         const [bookingResult] = await connection.query(
             'INSERT INTO bookings (userId, roomId, movieId, showDate, price, status) VALUES (?, ?, ?, ?, ?, ?)',
             [userId, roomId, movieId, formattedShowDateForDB, totalPrice, initialBookingStatus]
         );
         const bookingId = bookingResult.insertId;
 
-        // 3. Link seats to the booking
         const bookingSeatInserts = seatDbIds.map(seatDbId => [bookingId, seatDbId]);
         await connection.query('INSERT INTO bookingseats (bookingId, seatId) VALUES ?', [bookingSeatInserts]);
 
@@ -116,7 +113,7 @@ const createBooking = async ({ userId, roomId, movieId, seatDbIds, price, showDa
         } else if (initialBookingStatus === 'pending_payment' && seatDbIds.length > 0) {
              await connection.query(
                 'UPDATE seats SET status = ? WHERE id IN (?)',
-                [SEAT_STATUS.RESERVED, seatDbIds] // Assuming you have RESERVED in SEAT_STATUS
+                [SEAT_STATUS.RESERVED, seatDbIds]
             );
         }
 
@@ -168,7 +165,7 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         JOIN seats s ON bs.seatId = s.id
         WHERE b.id = ?
         GROUP BY 
-            b.id, b.showDate, , b.tprice, b.status,
+            b.id, b.showDate, , b.price, b.status,
             u.name, u.email, 
             m.title, m.duration, m.posterUrl,
             r.roomNumber, r.name;
