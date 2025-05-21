@@ -165,10 +165,10 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
         JOIN seats s ON bs.seatId = s.id
         WHERE b.id = ?
         GROUP BY 
-            b.id, b.showDate, , b.price, b.status,
+            b.id, b.showDate, b.price, b.status,
             u.name, u.email, 
             m.title, m.duration, m.posterUrl,
-            r.roomNumber, r.name;
+            r.roomNumber;
     `;
     try {
         const [rows] = await conn.query(query, [bookingId]);
