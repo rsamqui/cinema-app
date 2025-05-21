@@ -190,6 +190,54 @@ const getBookingDetailsForTicket = async (bookingId, dbConnection) => {
     }
 };
 
+const getBookingsByUserId = async (userId) => {
+  if (!userId) {
+    throw new Error('User ID is required to fetch bookings.');
+  }
+
+  const query = `
+    SELECT
+        b.id AS bookingId,
+        b.showDate AS showDate,
+        b.price AS totalPrice,
+        b.status AS bookingStatus,
+        u.name AS userName,
+        u.email AS userEmail,
+        m.title AS movieTitle,
+        m.duration AS movieDuration,
+        m.posterUrl AS moviePosterUrl,
+        r.roomNumber,
+        GROUP_CONCAT(DISTINCT CONCAT(s.rowLetter, s.colNumber) ORDER BY s.rowLetter, s.colNumber SEPARATOR ', ') AS bookedSeatsString
+    FROM bookings b
+    JOIN users u ON b.userId = u.id
+    JOIN rooms r ON b.roomId = r.id
+    JOIN movies m ON r.movieId = m.id
+    LEFT JOIN bookingseats bs ON b.id = bs.bookingId
+    LEFT JOIN seats s ON bs.seatId = s.id
+    WHERE b.userId = ?
+    GROUP BY 
+        b.id, b.showDate, b.price, b.status,
+        u.name, u.email, 
+        m.title, m.duration, m.posterUrl,
+        r.roomNumber
+    ORDER BY b.showDate DESC;
+  `;
+
+  try {
+    const [rows] = await pool.promise().query(query, [userId]);
+    
+    const bookingsWithParsedSeats = rows.map(booking => ({
+        ...booking,
+        seats: booking.bookedSeatsString ? booking.bookedSeatsString.split(', ').map(seatStr => ({ id: seatStr })) : []
+    }));
+
+    return bookingsWithParsedSeats;
+  } catch (error) {
+    console.error(`Error fetching bookings for user ID ${userId}:`, error);
+    throw new Error('Failed to retrieve your bookings: ' + error.message);
+  }
+};
+
 const deleteBooking = async (bookingId) => {
     if (!bookingId) {
         throw new Error('Booking ID is required');
@@ -244,4 +292,4 @@ const deleteBooking = async (bookingId) => {
 };
 
 
-module.exports = { getBookings, createBooking, getBookingDetailsForTicket, deleteBooking };
+module.exports = { getBookings, getBookingsByUserId, createBooking, getBookingDetailsForTicket, deleteBooking };

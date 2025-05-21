@@ -43,6 +43,21 @@ exports.getBookingDetailsForTicket = async (req, res) => {
     }
 }
 
+exports.getBookingsByUserId = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const bookings = await bookingService.getBookingsByUserId(userId);
+
+        if (!bookings) {
+            return res.status(404).json({ error: 'No se encontraron reservas para este usuario' });
+        }
+
+        res.json(bookings);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
 exports.updateBooking = async (req, res) => {
     try {
         const bookingId = req.params.id;
